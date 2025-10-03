@@ -32,8 +32,6 @@ namespace GameProject2
 
             _screenManager = new ScreenManager(this);
             Components.Add(_screenManager);
-
-            AddInitialScreens();
         }
 
         private void AddInitialScreens()
@@ -53,6 +51,8 @@ namespace GameProject2
         protected override void LoadContent()
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
+            AudioManager.LoadContent(Content);
+            AddInitialScreens();
         }
 
         protected override void Update(GameTime gameTime)

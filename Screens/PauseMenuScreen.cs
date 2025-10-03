@@ -2,8 +2,6 @@
 
 namespace GameProject2.Screens
 {
-    // The pause menu comes up over the top of the game,
-    // giving the player options to resume or quit.
     public class PauseMenuScreen : MenuScreen
     {
         public PauseMenuScreen() : base("Paused")
@@ -28,7 +26,6 @@ namespace GameProject2.Screens
             ScreenManager.AddScreen(confirmQuitMessageBox, ControllingPlayer);
         }
 
-        // This uses the loading screen to transition from the game back to the main menu screen.
         private void ConfirmQuitMessageBoxAccepted(object sender, PlayerIndexEventArgs e)
         {
             LoadingScreen.Load(ScreenManager, false, null, new BackgroundScreen(), new MainMenuScreen());

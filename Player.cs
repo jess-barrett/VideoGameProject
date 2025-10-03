@@ -28,6 +28,10 @@ namespace GameProject2
         private Direction direction = Direction.Down;
         private bool isMoving = false;
 
+        private float footstepTimer = 0f;
+        private float walkFootstepInterval = 0.5f;
+        private float runFootstepInterval = 0.3f;
+
         public PlayerState State { get; private set; } = PlayerState.Idle;
 
         public SpriteAnimation Animation;
@@ -133,11 +137,25 @@ namespace GameProject2
                 Animation = State == PlayerState.Walk
                     ? walkAnimations[(int)direction]
                     : runAnimations[(int)direction];
+
+                footstepTimer += dt;
+                float currentInterval = State == PlayerState.Walk ? walkFootstepInterval : runFootstepInterval;
+
+                if (footstepTimer >= currentInterval)
+                {
+                    footstepTimer = 0f;
+
+                    float pitchVariation = (float)(new System.Random().NextDouble() * 0.2 - 0.1);
+                    float volume = State == PlayerState.Walk ? 0.6f : 0.8f;
+
+                    AudioManager.PlayFootstep(volume, pitchVariation);
+                }
             }
             else
             {
                 Animation = idleAnimations[(int)direction];
                 State = PlayerState.Idle;
+                footstepTimer = 0f;
             }
 
             Animation.Position = position;

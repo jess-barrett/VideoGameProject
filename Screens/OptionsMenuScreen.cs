@@ -2,9 +2,6 @@
 
 namespace GameProject2.Screens
 {
-    // The options screen is brought up over the top of the main menu
-    // screen, and gives the user a chance to configure the game
-    // in various hopefully useful ways.
     public class OptionsMenuScreen : MenuScreen
     {
         private enum Ungulate
@@ -49,7 +46,6 @@ namespace GameProject2.Screens
             MenuEntries.Add(back);
         }
 
-        // Fills in the latest values for the options screen menu text.
         private void SetMenuEntryText()
         {
             _ungulateMenuEntry.Text = $"Preferred ungulate: {_currentUngulate}";

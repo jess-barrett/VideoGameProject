@@ -37,6 +37,8 @@ namespace GameProject2.Screens
 
             _spriteBatch = new SpriteBatch(ScreenManager.GraphicsDevice);
 
+            AudioManager.PlayGameplayMusicWithIntro();
+
             background = _content.Load<Texture2D>("background");
 
             player = new Player();
@@ -154,9 +156,9 @@ namespace GameProject2.Screens
             foreach (var skull in enemies)
                 skull.Draw(_spriteBatch);
 
-            DrawRotatedHitbox(_spriteBatch, player.RotatedHitbox, Color.Green);
-            foreach (var skull in enemies)
-                DrawRotatedHitbox(_spriteBatch, skull.RotatedHitbox, Color.Red);
+            //DrawRotatedHitbox(_spriteBatch, player.RotatedHitbox, Color.Green);
+            //foreach (var skull in enemies)
+                //DrawRotatedHitbox(_spriteBatch, skull.RotatedHitbox, Color.Red);
 
             _spriteBatch.End();
         }

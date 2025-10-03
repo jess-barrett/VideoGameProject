@@ -3,8 +3,6 @@ using Microsoft.Xna.Framework;
 
 namespace GameProject2.Screens
 {
-    // Custom event argument which includes the index of the player who
-    // triggered the event. This is used by the MenuEntry.Selected event.
     public class PlayerIndexEventArgs : EventArgs
     {
         public PlayerIndex PlayerIndex { get; }
