@@ -12,6 +12,8 @@ namespace GameProject2
         public float Rotation = 0f;
         public float Scale = 1f;
         public SpriteEffects SpriteEffect;
+        public float LayerDepth;
+        public float LayerDepthOffset = 0f;
         protected Rectangle[] Rectangles;
         protected int FrameIndex = 0;
 
@@ -33,7 +35,7 @@ namespace GameProject2
 
         public void Draw(SpriteBatch spriteBatch)
         {
-            spriteBatch.Draw(Texture, Position, Rectangles[FrameIndex], Color, Rotation, Origin, Scale, SpriteEffect, 0f);
+            spriteBatch.Draw(Texture, Position, Rectangles[FrameIndex], Color, Rotation, Origin, Scale, SpriteEffect, LayerDepth);
         }
     }
 
@@ -44,6 +46,7 @@ namespace GameProject2
         private float timeToUpdate;
 
         public int FramesPerSecond { set { timeToUpdate = (1f / value); } }
+        public Rectangle CurrentFrameRectangle => Rectangles[FrameIndex];
 
         public SpriteAnimation(Texture2D Texture, int frames, int fps) : base(Texture, frames)
         {

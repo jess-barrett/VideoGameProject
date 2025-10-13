@@ -91,7 +91,7 @@ namespace GameProject2.Screens
             base.UpdateMenuEntryLocations();
 
             var viewport = ScreenManager.GraphicsDevice.Viewport;
-            Vector2 position = new Vector2(0f, viewport.Height * 0.6f);
+            Vector2 position = new Vector2(0f, viewport.Height * 0.62f);
 
             foreach (var menuEntry in MenuEntries)
             {
@@ -102,14 +102,6 @@ namespace GameProject2.Screens
         }
 
         protected override void OnCancel(PlayerIndex playerIndex)
-        {
-            const string message = "Are you sure you want to quit?";
-            var confirmExitMessageBox = new MessageBoxScreen(message);
-            confirmExitMessageBox.Accepted += ConfirmExitMessageBoxAccepted;
-            ScreenManager.AddScreen(confirmExitMessageBox, playerIndex);
-        }
-
-        private void ConfirmExitMessageBoxAccepted(object sender, PlayerIndexEventArgs e)
         {
             ScreenManager.Game.Exit();
         }

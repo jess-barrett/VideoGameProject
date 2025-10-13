@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 using System.Collections.Generic;
 
 namespace GameProject2
@@ -25,20 +26,24 @@ namespace GameProject2
         private int walkSpeed = 300;
         private int runSpeed = 500;
 
-        private Direction direction = Direction.Down;
+        public Direction Direction = Direction.Down;
+
         private bool isMoving = false;
 
         private float footstepTimer = 0f;
         private float walkFootstepInterval = 0.5f;
         private float runFootstepInterval = 0.3f;
 
-        public PlayerState State { get; private set; } = PlayerState.Idle;
+        public PlayerState State { get; set; } = PlayerState.Idle;
 
         public SpriteAnimation Animation;
 
         public SpriteAnimation[] idleAnimations = new SpriteAnimation[4];
         public SpriteAnimation[] walkAnimations = new SpriteAnimation[4];
         public SpriteAnimation[] runAnimations = new SpriteAnimation[4];
+        public SpriteAnimation[] attack1Animations = new SpriteAnimation[4];
+        public SpriteAnimation[] attack2Animations = new SpriteAnimation[4];
+        public SpriteAnimation[] hurtAnimations = new SpriteAnimation[4];
 
         public Vector2 Position => position;
 
@@ -54,7 +59,7 @@ namespace GameProject2
 
                 if (State == PlayerState.Run)
                 {
-                    switch (direction)
+                    switch (Direction)
                     {
                         case Direction.Left:
                             hitboxWidth = 48;
@@ -91,42 +96,89 @@ namespace GameProject2
         public void SetX(float newX) => position.X = newX;
         public void SetY(float newY) => position.Y = newY;
 
-        public void Update(GameTime gameTime)
+        public void Update(GameTime gameTime, List<Skull> skulls, ParticleSystem particleSystem)
         {
             KeyboardState kbState = Keyboard.GetState();
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+            // === HURT LOGIC ===
+            if (State == PlayerState.Hurt)
+            {
+                Animation.Position = position;
+                Animation.Update(gameTime);
+
+                // End hurt state when animation finishes
+                if (Animation.CurrentFrameIndex == Animation.FrameCount - 1)
+                {
+                    State = PlayerState.Idle;
+                }
+
+                // Freeze movement while hurt
+                return;
+            }
+
+            // === ATTACK LOGIC ===
+            if (State == PlayerState.Attack1)
+            {
+                Animation.Update(gameTime);
+
+                // Attack hitbox in front of player
+                Rectangle attackHitbox = Hitbox;
+                int range = 40;
+                switch (Direction)
+                {
+                    case Direction.Up: attackHitbox.Y -= range; break;
+                    case Direction.Down: attackHitbox.Y += range; break;
+                    case Direction.Left: attackHitbox.X -= range; break;
+                    case Direction.Right: attackHitbox.X += range; break;
+                }
+
+                // Destroy skulls
+                foreach (var skull in skulls.ToArray())
+                {
+                    if (attackHitbox.Intersects(skull.Hitbox))
+                    {
+                        particleSystem.CreateSkullDeathEffect(skull.Position);
+                        skulls.Remove(skull);
+                    }    
+                }
+
+                // End attack when animation finishes
+                if (Animation.CurrentFrameIndex == Animation.FrameCount - 1)
+                {
+                    State = PlayerState.Idle;
+                }
+
+                // Do not process movement while attacking
+                return;
+            }
+
+            // === MOVEMENT INPUT ===
             isMoving = false;
 
-            if (kbState.IsKeyDown(Keys.D))
+            if (kbState.IsKeyDown(Keys.D)) { Direction = Direction.Right; isMoving = true; }
+            if (kbState.IsKeyDown(Keys.A)) { Direction = Direction.Left; isMoving = true; }
+            if (kbState.IsKeyDown(Keys.W)) { Direction = Direction.Up; isMoving = true; }
+            if (kbState.IsKeyDown(Keys.S)) { Direction = Direction.Down; isMoving = true; }
+
+            // === ATTACK TRIGGER ===
+            if (kbState.IsKeyDown(Keys.Space))
             {
-                direction = Direction.Right;
-                isMoving = true;
-                State = kbState.IsKeyDown(Keys.LeftShift) ? PlayerState.Run : PlayerState.Walk;
-            }
-            if (kbState.IsKeyDown(Keys.A))
-            {
-                direction = Direction.Left;
-                isMoving = true;
-                State = kbState.IsKeyDown(Keys.LeftShift) ? PlayerState.Run : PlayerState.Walk;
-            }
-            if (kbState.IsKeyDown(Keys.W))
-            {
-                direction = Direction.Up;
-                isMoving = true;
-                State = kbState.IsKeyDown(Keys.LeftShift) ? PlayerState.Run : PlayerState.Walk;
-            }
-            if (kbState.IsKeyDown(Keys.S))
-            {
-                direction = Direction.Down;
-                isMoving = true;
-                State = kbState.IsKeyDown(Keys.LeftShift) ? PlayerState.Run : PlayerState.Walk;
+                State = PlayerState.Attack1;
+                Animation = attack1Animations[(int)Direction];
+                Animation.IsLooping = false;
+                Animation.setFrame(0);
+                Animation.Position = position;
+                return;
             }
 
+            // === MOVEMENT LOGIC ===
             if (isMoving)
             {
+                State = kbState.IsKeyDown(Keys.LeftShift) ? PlayerState.Run : PlayerState.Walk;
                 int speed = State == PlayerState.Walk ? walkSpeed : runSpeed;
-                switch (direction)
+
+                switch (Direction)
                 {
                     case Direction.Down: position.Y += speed * dt; break;
                     case Direction.Up: position.Y -= speed * dt; break;
@@ -135,31 +187,28 @@ namespace GameProject2
                 }
 
                 Animation = State == PlayerState.Walk
-                    ? walkAnimations[(int)direction]
-                    : runAnimations[(int)direction];
+                    ? walkAnimations[(int)Direction]
+                    : runAnimations[(int)Direction];
 
+                // Footsteps
                 footstepTimer += dt;
-                float currentInterval = State == PlayerState.Walk ? walkFootstepInterval : runFootstepInterval;
-
-                if (footstepTimer >= currentInterval)
+                float interval = State == PlayerState.Walk ? walkFootstepInterval : runFootstepInterval;
+                if (footstepTimer >= interval)
                 {
                     footstepTimer = 0f;
-
-                    float pitchVariation = (float)(new System.Random().NextDouble() * 0.2 - 0.1);
+                    float pitchVariation = (float)(new Random().NextDouble() * 0.2 - 0.1);
                     float volume = State == PlayerState.Walk ? 0.6f : 0.8f;
-
                     AudioManager.PlayFootstep(volume, pitchVariation);
                 }
             }
             else
             {
-                Animation = idleAnimations[(int)direction];
                 State = PlayerState.Idle;
+                Animation = idleAnimations[(int)Direction];
                 footstepTimer = 0f;
             }
 
             Animation.Position = position;
-
             Animation.Update(gameTime);
         }
     }

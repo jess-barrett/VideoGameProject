@@ -7,7 +7,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace GameProject2
 {
-    enum Direction
+    public enum Direction
     {
         Down,
         Up,

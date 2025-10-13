@@ -42,7 +42,6 @@ namespace GameProject2.Screens
         public override void Activate()
         {
             var content = ScreenManager.Game.Content;
-                _gradientTexture = content.Load<Texture2D>("gradient");
         }
 
         public override void HandleInput(GameTime gameTime, InputState input)
@@ -83,7 +82,7 @@ namespace GameProject2.Screens
 
             spriteBatch.Begin();
 
-            spriteBatch.Draw(_gradientTexture, backgroundRectangle, color);
+            //spriteBatch.Draw(_gradientTexture, backgroundRectangle, color);
             spriteBatch.DrawString(font, _message, textPosition, color);
 
             spriteBatch.End();

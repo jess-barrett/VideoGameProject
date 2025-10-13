@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection.Metadata;
 using static System.TimeZoneInfo;
 
@@ -16,13 +17,18 @@ namespace GameProject2.Screens
         private SpriteBatch _spriteBatch;
         private Player player;
         private Camera camera;
+        private ParticleSystem particleSystem;
 
         private Texture2D skullSheet;
         private List<Skull> enemies = new List<Skull>();
         private float spawnTimer = 0f;
-        private float spawnInterval = 5f;
+        private float spawnInterval = 2f;
 
         private Texture2D background;
+
+        private SpriteFont instructionFont;
+        private float instructionTimer = 5f;
+        private string instructionText = "WASD to move | SHIFT to sprint | SPACE to attack";
 
         public GameplayScreen()
         {
@@ -43,6 +49,9 @@ namespace GameProject2.Screens
 
             player = new Player();
             camera = new Camera(ScreenManager.GraphicsDevice);
+            particleSystem = new ParticleSystem(ScreenManager.GraphicsDevice);
+
+            instructionFont = _content.Load<SpriteFont>("InstructionFont");
 
             skullSheet = _content.Load<Texture2D>("skull");
 
@@ -61,6 +70,16 @@ namespace GameProject2.Screens
             var runUp = _content.Load<Texture2D>("Player/Sprites/RUN/run_up");
             var runLeft = _content.Load<Texture2D>("Player/Sprites/RUN/run_left");
             var runRight = _content.Load<Texture2D>("Player/Sprites/RUN/run_right");
+
+            var attack1Down = _content.Load<Texture2D>("Player/Sprites/ATTACK 1/attack1_down");
+            var attack1Up = _content.Load<Texture2D>("Player/Sprites/ATTACK 1/attack1_up");
+            var attack1Left = _content.Load<Texture2D>("Player/Sprites/ATTACK 1/attack1_left");
+            var attack1Right = _content.Load<Texture2D>("Player/Sprites/ATTACK 1/attack1_right");
+
+            var hurtDown = _content.Load<Texture2D>("Player/Sprites/HURT/hurt_down");
+            var hurtUp = _content.Load<Texture2D>("Player/Sprites/HURT/hurt_up");
+            var hurtLeft = _content.Load<Texture2D>("Player/Sprites/HURT/hurt_left");
+            var hurtRight = _content.Load<Texture2D>("Player/Sprites/HURT/hurt_right");
 
             List<SpriteAnimation[]> animations = new List<SpriteAnimation[]>();
 
@@ -82,6 +101,19 @@ namespace GameProject2.Screens
             player.runAnimations[3] = new SpriteAnimation(runRight, 8, 12);
             animations.Add(player.runAnimations);
 
+            player.attack1Animations[0] = new SpriteAnimation(attack1Down, 8, 24);
+            player.attack1Animations[1] = new SpriteAnimation(attack1Up, 8, 24);
+            player.attack1Animations[2] = new SpriteAnimation(attack1Left, 8, 24);
+            player.attack1Animations[3] = new SpriteAnimation(attack1Right, 8, 24);
+            animations.Add(player.attack1Animations);
+
+            player.hurtAnimations[0] = new SpriteAnimation(hurtDown, 4, 8);
+            player.hurtAnimations[1] = new SpriteAnimation(hurtUp, 4, 8);
+            player.hurtAnimations[2] = new SpriteAnimation(hurtLeft, 4, 8);
+            player.hurtAnimations[3] = new SpriteAnimation(hurtRight, 4, 8);
+            player.hurtAnimations[3] = new SpriteAnimation(hurtRight, 4, 8);
+            animations.Add(player.hurtAnimations);
+
             player.Animation = player.idleAnimations[0];
 
             foreach (var animSet in animations)
@@ -89,8 +121,8 @@ namespace GameProject2.Screens
                 foreach (var anim in animSet)
                 {
                     anim.Scale = 4f;
-                    int frameWidth = walkDown.Width / 8;
-                    int frameHeight = walkDown.Height;
+                    int frameWidth = anim.GetTexture.Width / anim.FrameCount;
+                    int frameHeight = anim.GetTexture.Height;
                     anim.Origin = new Vector2(frameWidth / 2f, frameHeight / 2f);
                 }
             }
@@ -105,11 +137,10 @@ namespace GameProject2.Screens
         {
             base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
 
-            player.Update(gameTime);
-            camera.Position = player.Position;
-            camera.Update(gameTime);
-
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            if (instructionTimer > 0)
+                instructionTimer -= dt;
 
             // spawn timer
             spawnTimer += dt;
@@ -125,16 +156,36 @@ namespace GameProject2.Screens
             foreach (var skull in enemies)
                 skull.Update(gameTime, player);
 
-            // Check for collisions
+            // Check for collisions between player and skulls
             RotatedRectangle playerHitbox = player.RotatedHitbox;
-            foreach (var skull in enemies)
+            for (int i = enemies.Count - 1; i >= 0; i--)
             {
+                var skull = enemies[i];
+
                 if (playerHitbox.Intersects(skull.RotatedHitbox))
                 {
-                    System.Diagnostics.Debug.WriteLine("Collision detected!");
-                    // Handle collision
+                    if (player.State != PlayerState.Attack1 && player.State != PlayerState.Hurt)
+                    {
+                        player.State = PlayerState.Hurt;
+                        player.Animation = player.hurtAnimations[(int)player.Direction];
+                        player.Animation.IsLooping = false;
+                        player.Animation.setFrame(0);
+
+                        //AudioManager.PlayHurtSound();
+
+                        particleSystem.CreateSkullDeathEffect(skull.Position);
+
+                        enemies.RemoveAt(i);
+                    }
                 }
             }
+
+            particleSystem.Update(gameTime);
+
+            player.Update(gameTime, enemies, particleSystem);
+
+            camera.Position = player.Position;
+            camera.Update(gameTime);
         }
 
         public override void Draw(GameTime gameTime)
@@ -143,24 +194,78 @@ namespace GameProject2.Screens
 
             _spriteBatch.Begin(
                 camera,
-                SpriteSortMode.Deferred,
+                SpriteSortMode.BackToFront,
                 BlendState.AlphaBlend,
                 SamplerState.PointClamp,
                 DepthStencilState.Default,
                 RasterizerState.CullNone
             );
 
-            _spriteBatch.Draw(background, new Vector2(-500, -500), Color.White);
-            player.Animation.Draw(_spriteBatch);
+            // Draw background at layer 0 (behind everything)
+            _spriteBatch.Draw(background, new Vector2(-500, -500), null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 1f);
 
-            foreach (var skull in enemies)
-                skull.Draw(_spriteBatch);
+            // Build draw list
+            var drawList = new List<SpriteAnimation>();
+            if (player.Animation != null)
+                drawList.Add(player.Animation);
+            drawList.AddRange(enemies.Select(e => e.Animation));
 
-            //DrawRotatedHitbox(_spriteBatch, player.RotatedHitbox, Color.Green);
-            //foreach (var skull in enemies)
-                //DrawRotatedHitbox(_spriteBatch, skull.RotatedHitbox, Color.Red);
+            // Sort by bottom Y (position + half sprite height)
+            drawList = drawList
+                .OrderBy(anim => anim.Position.Y + anim.FrameHeight / 2f)
+                .ToList();
+
+            // Draw everything with calculated layer depth
+            foreach (var anim in drawList)
+            {
+                float yPosition = anim.Position.Y + anim.FrameHeight / 2f + anim.LayerDepthOffset;
+                float normalizedY = yPosition / 2000f;
+                float layerDepth = MathHelper.Clamp(0.9f - (normalizedY * 0.8f), 0.1f, 0.9f);
+
+                _spriteBatch.Draw(
+                    anim.GetTexture,
+                    anim.Position,
+                    anim.CurrentFrameRectangle,
+                    anim.Color,
+                    anim.Rotation,
+                    anim.Origin,
+                    anim.Scale,
+                    anim.SpriteEffect,
+                    layerDepth
+                );
+            }
+
+            particleSystem.Draw(_spriteBatch, 0.05f);
 
             _spriteBatch.End();
+
+            if (instructionTimer > 0)
+            {
+                _spriteBatch.Begin(
+                    SpriteSortMode.Deferred,
+                    BlendState.AlphaBlend,
+                    SamplerState.PointClamp,
+                    DepthStencilState.Default,
+                    RasterizerState.CullNone
+                );
+
+                float alpha = MathHelper.Clamp(instructionTimer, 0f, 1f);
+
+                Vector2 textSize = instructionFont.MeasureString(instructionText);
+                Vector2 textPosition = new Vector2(
+                    (ScreenManager.GraphicsDevice.Viewport.Width - textSize.X) / 2,
+                    30 // 30 pixels from top
+                );
+
+                _spriteBatch.DrawString(
+                    instructionFont,
+                    instructionText,
+                    textPosition,
+                    Color.Black * alpha
+                );
+
+                _spriteBatch.End();
+            }
         }
 
         private Texture2D pixelTexture;

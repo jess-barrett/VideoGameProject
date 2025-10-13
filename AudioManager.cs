@@ -15,7 +15,7 @@ namespace GameProject2
         private static SoundEffectInstance menuMusicInstance;
         private static SoundEffectInstance gameplayMusicInstance;
 
-        private static float musicVolume = 0.1f;
+        private static float musicVolume = 0.5f;
         private static float sfxVolume = 1.0f;
 
         public static float MusicVolume
@@ -24,8 +24,9 @@ namespace GameProject2
             set
             {
                 musicVolume = MathHelper.Clamp(value, 0f, 1f);
-                if (menuMusicInstance != null) menuMusicInstance.Volume = musicVolume;
-                if (gameplayMusicInstance != null) gameplayMusicInstance.Volume = musicVolume;
+                float scaledVolume = musicVolume * 0.1f;
+                if (menuMusicInstance != null) menuMusicInstance.Volume = scaledVolume;
+                if (gameplayMusicInstance != null) gameplayMusicInstance.Volume = scaledVolume;
             }
         }
 
@@ -35,7 +36,6 @@ namespace GameProject2
             set
             {
                 sfxVolume = MathHelper.Clamp(value, 0f, 1f);
-                SoundEffect.MasterVolume = sfxVolume;
             }
         }
 
@@ -50,13 +50,11 @@ namespace GameProject2
             // Create looping instances for music
             menuMusicInstance = menuMusicEffect.CreateInstance();
             menuMusicInstance.IsLooped = true;
-            menuMusicInstance.Volume = musicVolume;
+            menuMusicInstance.Volume = musicVolume * 0.1f;
 
             gameplayMusicInstance = gameplayMusicEffect.CreateInstance();
             gameplayMusicInstance.IsLooped = true;
-            gameplayMusicInstance.Volume = musicVolume;
-
-            SoundEffect.MasterVolume = sfxVolume;
+            gameplayMusicInstance.Volume = musicVolume * 0.1f;
         }
 
         public static void PlayMenuMusicWithIntro()
@@ -64,7 +62,7 @@ namespace GameProject2
             StopMusic();
 
             var introInstance = menuIntro.CreateInstance();
-            introInstance.Volume = musicVolume;
+            introInstance.Volume = musicVolume * 0.1f;
             introInstance.Play();
 
             if (menuMusicInstance.State != SoundState.Playing)
@@ -78,7 +76,7 @@ namespace GameProject2
             StopMusic();
 
             var introInstance = gameplayIntro.CreateInstance();
-            introInstance.Volume = musicVolume;
+            introInstance.Volume = musicVolume * 0.1f;
             introInstance.Play();
 
             if (gameplayMusicInstance.State != SoundState.Playing)
