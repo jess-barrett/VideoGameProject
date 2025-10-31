@@ -1,13 +1,15 @@
 ﻿using Comora;
+using GameProject2.SaveSystem;
 using GameProject2.StateManagement;
+using GameProject2.Tilemaps;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Reflection.Metadata;
-using static System.TimeZoneInfo;
 
 namespace GameProject2.Screens
 {
@@ -15,16 +17,26 @@ namespace GameProject2.Screens
     {
         private ContentManager _content;
         private SpriteBatch _spriteBatch;
+
         private Player player;
+        private PlayerHUD hud;
+
         private Camera camera;
         private ParticleSystem particleSystem;
+
+        private Texture2D vaseTexture;
+        private Texture2D coinTexture;
+        private List<Vase> vases = new List<Vase>();
+        private List<Coin> coins = new List<Coin>();
 
         private Texture2D skullSheet;
         private List<Skull> enemies = new List<Skull>();
         private float spawnTimer = 0f;
         private float spawnInterval = 2f;
 
-        private Texture2D background;
+        private Tilemap tilemap;
+
+        private List<Rectangle> collisionBoxes = new List<Rectangle>();
 
         private SpriteFont instructionFont;
         private float instructionTimer = 5f;
@@ -45,9 +57,33 @@ namespace GameProject2.Screens
 
             AudioManager.PlayGameplayMusicWithIntro();
 
-            background = _content.Load<Texture2D>("background");
+            string tmxPath = Path.Combine(_content.RootDirectory, "Rooms", "StartingRoom.tmx");
+            tilemap = TmxLoader.Load(tmxPath, _content);
+
+            float tilemapScale = 4f;
+            collisionBoxes.Clear();
+
+            foreach (var objectLayer in tilemap.ObjectLayers)
+            {
+                if (objectLayer.Name == "Collision")
+                {
+                    foreach (var obj in objectLayer.Objects)
+                    {
+                        Rectangle collisionRect = new Rectangle(
+                            (int)(obj.X * tilemapScale),
+                            (int)(obj.Y * tilemapScale),
+                            (int)(obj.Width * tilemapScale),
+                            (int)(obj.Height * tilemapScale)
+                        );
+                        collisionBoxes.Add(collisionRect);
+                    }
+                }
+            }
 
             player = new Player();
+            hud = new PlayerHUD();
+            hud.LoadContent(_content);
+
             camera = new Camera(ScreenManager.GraphicsDevice);
             particleSystem = new ParticleSystem(ScreenManager.GraphicsDevice);
 
@@ -126,10 +162,31 @@ namespace GameProject2.Screens
                     anim.Origin = new Vector2(frameWidth / 2f, frameHeight / 2f);
                 }
             }
+
+            vaseTexture = _content.Load<Texture2D>("Interactables/Vase");
+            coinTexture = _content.Load<Texture2D>("Interactables/Coin");
+
+            foreach (var objectLayer in tilemap.ObjectLayers)
+            {
+                if (objectLayer.Name == "Objects")
+                {
+                    foreach (var obj in objectLayer.Objects)
+                    {
+                        if (obj.Class == "Vase")
+                        {
+                            Vector2 vasePos = new Vector2(obj.X * tilemapScale, obj.Y * tilemapScale);
+                            vases.Add(new Vase(vaseTexture, vasePos, 16, 8));
+                        }
+                    }
+                }
+            }
+
+            LoadGame();
         }
 
         public override void Unload()
         {
+            SaveGame();
             _content.Unload();
         }
 
@@ -171,6 +228,8 @@ namespace GameProject2.Screens
                         player.Animation.IsLooping = false;
                         player.Animation.setFrame(0);
 
+                        hud.TakeDamage();
+
                         //AudioManager.PlayHurtSound();
 
                         particleSystem.CreateSkullDeathEffect(skull.Position);
@@ -180,11 +239,82 @@ namespace GameProject2.Screens
                 }
             }
 
+            // Update vases
+            foreach (var vase in vases)
+                vase.Update(gameTime);
+
+            // Update coins
+            foreach (var coin in coins)
+                coin.Update(gameTime);
+
+            // Check player hitting vases
+            if (player.State == PlayerState.Attack1)
+            {
+                Rectangle attackHitbox = player.Hitbox;
+                int verticalRange = 40;
+                int horizontalRange = 100;
+
+                switch (player.Direction)
+                {
+                    case Direction.Up:
+                        attackHitbox.Y -= verticalRange;
+                        attackHitbox.Height += verticalRange;
+                        break;
+                    case Direction.Down:
+                        attackHitbox.Height += verticalRange;
+                        break;
+                    case Direction.Left:
+                        attackHitbox.X -= horizontalRange;
+                        attackHitbox.Width += horizontalRange;
+                        break;
+                    case Direction.Right:
+                        attackHitbox.Width += horizontalRange;
+                        break;
+                }
+
+                for (int i = vases.Count - 1; i >= 0; i--)
+                {
+                    if (!vases[i].IsDestroyed && attackHitbox.Intersects(vases[i].Hitbox))
+                    {
+                        vases[i].IsDestroyed = true;
+
+                        // Spawn a coin at vase position
+                        coins.Add(new Coin(coinTexture, vases[i].Position, 8, 8));
+
+                        vases.RemoveAt(i);
+                    }
+                }
+            }
+
+            // Check player collecting coins
+            for (int i = coins.Count - 1; i >= 0; i--)
+            {
+                if (player.Hitbox.Intersects(coins[i].Hitbox))
+                {
+                    coins[i].IsCollected = true;
+                    hud.AddCoin();
+                    coins.RemoveAt(i);
+                }
+            }
+
             particleSystem.Update(gameTime);
 
-            player.Update(gameTime, enemies, particleSystem);
+            player.Update(gameTime, enemies, particleSystem, collisionBoxes);
 
-            camera.Position = player.Position;
+            hud.Update(gameTime);
+
+            float tilemapScale = 4f;
+            float tilemapWidth = tilemap.Width * tilemap.TileWidth * tilemapScale;
+            float tilemapHeight = tilemap.Height * tilemap.TileHeight * tilemapScale;
+
+            float halfScreenWidth = ScreenManager.GraphicsDevice.Viewport.Width / 2f;
+            float halfScreenHeight = ScreenManager.GraphicsDevice.Viewport.Height / 2f;
+
+            camera.Position = new Vector2(
+                MathHelper.Clamp(player.Position.X, halfScreenWidth, tilemapWidth - halfScreenWidth),
+                MathHelper.Clamp(player.Position.Y, halfScreenHeight, tilemapHeight - halfScreenHeight)
+            );
+
             camera.Update(gameTime);
         }
 
@@ -201,21 +331,25 @@ namespace GameProject2.Screens
                 RasterizerState.CullNone
             );
 
-            // Draw background at layer 0 (behind everything)
-            _spriteBatch.Draw(background, new Vector2(-500, -500), null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 1f);
+            float baseDepth = 0.99f;
+            float depthStep = 0.01f;
+            for (int i = 0; i < tilemap.Layers.Count; i++)
+            {
+                float layerDepth = baseDepth - (i * depthStep);
+                TilemapRenderer.DrawLayer(_spriteBatch, tilemap, tilemap.Layers[i], layerDepth, 4f);
+            }
 
-            // Build draw list
             var drawList = new List<SpriteAnimation>();
             if (player.Animation != null)
                 drawList.Add(player.Animation);
             drawList.AddRange(enemies.Select(e => e.Animation));
+            drawList.AddRange(vases.Select(v => v.Animation));
+            drawList.AddRange(coins.Select(c => c.Animation));
 
-            // Sort by bottom Y (position + half sprite height)
             drawList = drawList
                 .OrderBy(anim => anim.Position.Y + anim.FrameHeight / 2f)
                 .ToList();
 
-            // Draw everything with calculated layer depth
             foreach (var anim in drawList)
             {
                 float yPosition = anim.Position.Y + anim.FrameHeight / 2f + anim.LayerDepthOffset;
@@ -239,33 +373,36 @@ namespace GameProject2.Screens
 
             _spriteBatch.End();
 
+            // Draw UI elements in screen space
+            _spriteBatch.Begin(
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                SamplerState.PointClamp,
+                DepthStencilState.Default,
+                RasterizerState.CullNone
+            );
+
+            // Draw instruction text
             if (instructionTimer > 0)
             {
-                _spriteBatch.Begin(
-                    SpriteSortMode.Deferred,
-                    BlendState.AlphaBlend,
-                    SamplerState.PointClamp,
-                    DepthStencilState.Default,
-                    RasterizerState.CullNone
-                );
-
                 float alpha = MathHelper.Clamp(instructionTimer, 0f, 1f);
-
                 Vector2 textSize = instructionFont.MeasureString(instructionText);
                 Vector2 textPosition = new Vector2(
                     (ScreenManager.GraphicsDevice.Viewport.Width - textSize.X) / 2,
-                    30 // 30 pixels from top
+                    30
                 );
-
                 _spriteBatch.DrawString(
                     instructionFont,
                     instructionText,
                     textPosition,
                     Color.Black * alpha
                 );
-
-                _spriteBatch.End();
             }
+
+            // Draw HUD
+            hud.Draw(_spriteBatch, ScreenManager.GraphicsDevice.Viewport);
+
+            _spriteBatch.End();
         }
 
         private Texture2D pixelTexture;
@@ -297,6 +434,41 @@ namespace GameProject2.Screens
             spriteBatch.Draw(pixelTexture,
                 new Rectangle((int)start.X, (int)start.Y, (int)edge.Length(), (int)thickness),
                 null, color, angle, Vector2.Zero, SpriteEffects.None, 0);
+        }
+
+        public void SaveGame()
+        {
+            SaveData data = new SaveData
+            {
+                CoinCount = hud.CoinCount,
+                CurrentHealth = hud.CurrentHealth,
+                MaxHealth = hud.MaxHealth,
+                PlayerX = player.Position.X,
+                PlayerY = player.Position.Y,
+                MusicVolume = AudioManager.MusicVolume,
+                SfxVolume = AudioManager.SFXVolume
+            };
+
+            SaveData.Save(data);
+            System.Diagnostics.Debug.WriteLine("Game saved!");
+        }
+
+        public void LoadGame()
+        {
+            SaveData data = SaveData.Load();
+
+            if (data != null)
+            {
+                hud.CoinCount = data.CoinCount;
+                hud.CurrentHealth = data.CurrentHealth;
+                hud.MaxHealth = data.MaxHealth;
+                player.SetX(data.PlayerX);
+                player.SetY(data.PlayerY);
+                AudioManager.MusicVolume = data.MusicVolume;
+                AudioManager.SFXVolume = data.SfxVolume;
+
+                System.Diagnostics.Debug.WriteLine("Game loaded!");
+            }
         }
     }
 }

@@ -9,7 +9,6 @@ namespace GameProject2.Screens
     public class MessageBoxScreen : GameScreen
     {
         private readonly string _message;
-        private Texture2D _gradientTexture;
         private readonly InputAction _menuSelect;
         private readonly InputAction _menuCancel;
 

@@ -96,7 +96,7 @@ namespace GameProject2
         public void SetX(float newX) => position.X = newX;
         public void SetY(float newY) => position.Y = newY;
 
-        public void Update(GameTime gameTime, List<Skull> skulls, ParticleSystem particleSystem)
+        public void Update(GameTime gameTime, List<Skull> skulls, ParticleSystem particleSystem, List<Rectangle> collisionBoxes)
         {
             KeyboardState kbState = Keyboard.GetState();
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -122,25 +122,30 @@ namespace GameProject2
             {
                 Animation.Update(gameTime);
 
-                // Attack hitbox in front of player
-                Rectangle attackHitbox = Hitbox;
-                int range = 40;
-                switch (Direction)
-                {
-                    case Direction.Up: attackHitbox.Y -= range; break;
-                    case Direction.Down: attackHitbox.Y += range; break;
-                    case Direction.Left: attackHitbox.X -= range; break;
-                    case Direction.Right: attackHitbox.X += range; break;
-                }
+                int attackStartFrame = 1;
+                int attackEndFrame = 3;
 
-                // Destroy skulls
-                foreach (var skull in skulls.ToArray())
+                if (Animation.CurrentFrameIndex >= attackStartFrame && Animation.CurrentFrameIndex <= attackEndFrame)
                 {
-                    if (attackHitbox.Intersects(skull.Hitbox))
+                    Rectangle attackHitbox = Hitbox;
+                    int verticalRange = 40;
+                    int horizontalRange = 100;
+                    switch (Direction)
                     {
-                        particleSystem.CreateSkullDeathEffect(skull.Position);
-                        skulls.Remove(skull);
-                    }    
+                        case Direction.Up: attackHitbox.Y -= verticalRange; break;
+                        case Direction.Down: attackHitbox.Y += verticalRange; break;
+                        case Direction.Left: attackHitbox.X -= horizontalRange; break;
+                        case Direction.Right: attackHitbox.X += horizontalRange; break;
+                    }
+
+                    foreach (var skull in skulls.ToArray())
+                    {
+                        if (attackHitbox.Intersects(skull.Hitbox))
+                        {
+                            particleSystem.CreateSkullDeathEffect(skull.Position);
+                            skulls.Remove(skull);
+                        }
+                    }
                 }
 
                 // End attack when animation finishes
@@ -149,7 +154,6 @@ namespace GameProject2
                     State = PlayerState.Idle;
                 }
 
-                // Do not process movement while attacking
                 return;
             }
 
@@ -178,12 +182,36 @@ namespace GameProject2
                 State = kbState.IsKeyDown(Keys.LeftShift) ? PlayerState.Run : PlayerState.Walk;
                 int speed = State == PlayerState.Walk ? walkSpeed : runSpeed;
 
+                Vector2 newPosition = position;
+
                 switch (Direction)
                 {
-                    case Direction.Down: position.Y += speed * dt; break;
-                    case Direction.Up: position.Y -= speed * dt; break;
-                    case Direction.Left: position.X -= speed * dt; break;
-                    case Direction.Right: position.X += speed * dt; break;
+                    case Direction.Down: newPosition.Y += speed * dt; break;
+                    case Direction.Up: newPosition.Y -= speed * dt; break;
+                    case Direction.Left: newPosition.X -= speed * dt; break;
+                    case Direction.Right: newPosition.X += speed * dt; break;
+                }
+
+                Rectangle newHitbox = new Rectangle(
+                    (int)(newPosition.X - 24),
+                    (int)(newPosition.Y - 56),
+                    48,
+                    112
+                );
+
+                bool collided = false;
+                foreach (var wall in collisionBoxes)
+                {
+                    if (newHitbox.Intersects(wall))
+                    {
+                        collided = true;
+                        break;
+                    }
+                }
+
+                if (!collided)
+                {
+                    position = newPosition;
                 }
 
                 Animation = State == PlayerState.Walk
